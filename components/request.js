@@ -59,19 +59,16 @@ export default class Request {
   }
 
   //url, headers, method, body, agent
-  #doRequest(opts) {
-    const request = opts.url.protocol === 'https:' ? https.request : http.request
-    const requestOpts = {headers: opts.headers, method: opts.method, agent: opts.agent}
+  #doRequest(requestOpts) {
+    const request = requestOpts.url.protocol === 'https:' ? https.request : http.request
     return new Promise((resolve, reject) => {
-      const req = request(opts.url, requestOpts, response => {
-        let body = ''
-        response.on('data', chunk => body += chunk)
-        response.on('end', () => {
-          const {statusCode, statusMessage, rawHeaders} = response
-          resolve({statusCode, statusMessage, rawHeaders, body, requestOpts: opts})
-        })
+      const req = request(requestOpts.url, requestOpts, response => {
+        response.requestOptions = requestOpts
+        response.body = ''
+        response.on('data', chunk => response.body += chunk)
+        response.on('end', () => resolve(response))
       })
-      if (opts.body) req.write(opts.body)
+      if (requestOpts.body) req.write(requestOpts.body)
       req.end()
     })
   }
