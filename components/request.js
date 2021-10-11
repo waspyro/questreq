@@ -15,6 +15,11 @@ export default class Request {
     this.setRandomDefaultUserAgentHeader()
   }
 
+  responseParsers = new Map([
+    ['json', resp => JSON.parse(resp.body)],
+    ['body', resp => resp.body]
+  ])
+
   defaultHeaders = {
     'Accept': '*/*',
     'Accept-Language': 'en-gb'
@@ -22,9 +27,8 @@ export default class Request {
 
   hooks = {
     onCreation: new Hooks,
-    onRequest: new Hooks,
-    onResponse: new Hooks,
-    onReturn: new Hooks
+    beforeRequest: new Hooks,
+    onResponse: new Hooks
   }
 
   #getRequestOptions(userOptions) {
@@ -80,8 +84,8 @@ export default class Request {
 
     const userOptions = await this.hooks.onCreation.run(
       opts, additionalHooks.onCreation)
-    const requestOptions = await this.hooks.onRequest.run(
-      this.#getRequestOptions(userOptions), additionalHooks.onRequest)
+    const requestOptions = await this.hooks.beforeRequest.run(
+      this.#getRequestOptions(userOptions), additionalHooks.beforeRequest)
     const response = await this.hooks.onResponse.run(
       await this.#doRequest(requestOptions), additionalHooks.onResponse)
 
@@ -91,7 +95,13 @@ export default class Request {
     }
 
     if (response.statusCode < 200 || response.statusCode > 300) throw response
-    return this.hooks.onReturn.run(response, additionalHooks.onReturn)
+
+    if(opts.pull)
+      return typeof opts.pull === 'function'
+        ? opts.pull(response)
+        : this.responseParsers.get(opts.pull)(response)
+
+    return response
   }
 
   #getRandomUserAgent(isMobile) { //todo: type: mobile / desktop
