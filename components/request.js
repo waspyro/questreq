@@ -28,7 +28,8 @@ export default class Request {
   hooks = {
     onCreation: new Hooks,
     beforeRequest: new Hooks,
-    onResponse: new Hooks
+    onResponse: new Hooks,
+    onSetCookie: new Hooks
   }
 
   #getRequestOptions(userOptions) {
@@ -53,11 +54,8 @@ export default class Request {
       requestOptions.headers['content-length'] = Buffer.byteLength(requestOptions.body)
     }
 
-    if (userOptions.cookies) {
-      requestOptions.headers.cookie = typeof userOptions.cookies === 'string'
-        ? userOptions.cookies
-        : userOptions.cookies.toString()
-    }
+    if (userOptions.cookies)
+      requestOptions.headers.cookie = userOptions.cookies.toString()
 
     return requestOptions
   }
@@ -67,11 +65,23 @@ export default class Request {
     const request = requestOpts.url.protocol === 'https:' ? https.request : http.request
     return new Promise((resolve, reject) => {
       request(requestOpts.url, requestOpts, response => {
+        response.cookies = this.#parseSetCookies(response.headers['set-cookie'])
         response.requestOptions = requestOpts
         response.body = ''
         response.on('data', chunk => response.body += chunk)
         response.on('end', () => resolve(response))
       }).end(requestOpts.body)
+    })
+  }
+
+  #parseSetCookies(cookies = []) {
+    return cookies.map(str => {
+      const parts = str.split(';').map(part => part.trim().split('='))
+      const [name, value] = parts.shift()
+      const cookie = {name,value}
+      for(const [key, value = true] of parts)
+        cookie[key.toLowerCase()] = decodeURIComponent(value)
+      return cookie
     })
   }
 
@@ -86,6 +96,9 @@ export default class Request {
       this.#getRequestOptions(userOptions), additionalHooks.beforeRequest)
     const response = await this.hooks.onResponse.run(
       await this.#doRequest(requestOptions), additionalHooks.onResponse)
+
+    if(response.cookies.length)
+      await this.hooks.onSetCookie.run(response.cookies, additionalHooks.onSetCookie)
 
     if (response.statusCode === 301 && userOptions.followRedirects > 0) {
       userOptions.followRedirects--
