@@ -100,8 +100,10 @@ export default class Request {
     if(response.cookies.length)
       await this.hooks.onSetCookie.run(response.cookies, additionalHooks.onSetCookie)
 
+    //todo: "remember redirect" option?
     if (response.statusCode === 301 && userOptions.followRedirects > 0) {
       userOptions.followRedirects--
+      userOptions.url = response.headers.location
       return this.request(userOptions)
     }
 
