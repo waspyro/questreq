@@ -66,14 +66,12 @@ export default class Request {
   #doRequest(requestOpts) {
     const request = requestOpts.url.protocol === 'https:' ? https.request : http.request
     return new Promise((resolve, reject) => {
-      const req = request(requestOpts.url, requestOpts, response => {
+      request(requestOpts.url, requestOpts, response => {
         response.requestOptions = requestOpts
         response.body = ''
         response.on('data', chunk => response.body += chunk)
         response.on('end', () => resolve(response))
-      })
-      if (requestOpts.body) req.write(requestOpts.body)
-      req.end()
+      }).end(requestOpts.body)
     })
   }
 
