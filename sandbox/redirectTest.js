@@ -1,7 +1,9 @@
 import Request from "../index.js";
 
-const r = Request.func
-r.hooks.beforeRequest.add(opts => console.log('>', opts.url.toString()))
+const r = new Request({
+  onRequestOpts: opts => console.log('>', opts.url.toString())
+})
+
 await r({
   url: 'https://google.com',
   followRedirects: 1

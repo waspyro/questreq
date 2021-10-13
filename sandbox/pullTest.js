@@ -1,7 +1,7 @@
 import Request from "../index.js";
 
-const r = Request.func
-await r({
+const r = new Request
+const req = r({
   url: 'https://reqres.in/api/users',
   method: 'POST',
   json: {
@@ -9,4 +9,4 @@ await r({
     "job": "leader"
   },
   pull: 'json'
-}).then(re => console.log(re)) //should be {name: 'morpheus'...}
+}).then(console.log)
