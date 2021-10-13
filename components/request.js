@@ -88,17 +88,12 @@ export default class Request {
   //todo: return request object which can be awaited, repeated, cancelled
   //method, url, body, form, headers, cookies, returnType, onRedirect, timeout, json, maxRedirects, returnBody, returnType
   async request(opts) {
-    const additionalHooks = opts.hooks || {}
+    const {onCreation, beforeRequest, onResponse, onSetCookie} = opts
 
-    const userOptions = await this.hooks.onCreation.run(
-      opts, additionalHooks.onCreation)
-    const requestOptions = await this.hooks.beforeRequest.run(
-      this.#getRequestOptions(userOptions), additionalHooks.beforeRequest)
-    const response = await this.hooks.onResponse.run(
-      await this.#doRequest(requestOptions), additionalHooks.onResponse)
-
-    if(response.cookies.length)
-      await this.hooks.onSetCookie.run(response.cookies, additionalHooks.onSetCookie)
+    const userOptions = await this.hooks.onCreation.run(opts, onCreation)
+    const requestOptions = await this.hooks.beforeRequest.run(this.#getRequestOptions(userOptions), beforeRequest)
+    const response = await this.hooks.onResponse.run(await this.#doRequest(requestOptions), onResponse)
+    if(response.cookies.length) await this.hooks.onSetCookie.run(response.cookies, onSetCookie)
 
     //todo: "remember redirect" option?
     if (response.statusCode === 301 && userOptions.followRedirects > 0) {
