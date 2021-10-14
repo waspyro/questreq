@@ -11,7 +11,9 @@ export default class Request {
   }
 
   #mergeOpts(newOpts) {
-    return Object.assign(this.opts, newOpts)
+    const copy = {...this.opts}
+    Object.keys(newOpts).forEach(key => copy[key] = newOpts[key])
+    return copy
   }
 
   opts = {
@@ -63,8 +65,10 @@ export default class Request {
       requestOptions.headers['content-length'] = Buffer.byteLength(requestOptions.body)
     }
 
-    if (userOptions.useCookies)
-      requestOptions.headers.cookie = userOptions.cookieGetter(userOptions.appendCookies)
+    if (userOptions.useCookies) {
+      const cookieStr = userOptions.cookieGetter(userOptions.appendCookies)
+      if(cookieStr) requestOptions.headers.cookie = cookieStr
+    }
 
     return requestOptions
   }
@@ -77,27 +81,19 @@ export default class Request {
         response.body = ''
         response.on('data', chunk => response.body += chunk)
         response.on('end', () => resolve(response))
-        response.getCookies = () => {
-          if(response.cookies === undefined)
-            response.cookies = this.#parseSetCookies(response.headers['set-cookie'])
-          return response.cookies
-        }
       }).end(requestOpts.body)
     })
   }
 
-  #parseSetCookies(cookies = []) {
-    const cookiesArr = cookies.map(str => {
+  #parseSetCookies(cookies = [], saver) {
+    return cookies.map(str => {
       const parts = str.split(';').map(part => part.trim().split('='))
       const [name, value] = parts.shift()
       const cookie = {name,value}
       for(const [key, value = true] of parts)
         cookie[key.toLowerCase()] = decodeURIComponent(value)
-      cookie.save = () => this.opts.cookieSaver(cookie)
       return cookie
     })
-    cookiesArr.save = () => cookiesArr.forEach(c => c.save())
-    return cookiesArr
   }
 
   #runHooks(hooks, args) {
@@ -113,9 +109,14 @@ export default class Request {
     userOpts = this.#runHooks(userOpts.onInit, userOpts)
     const requestOptions = this.#runHooks(userOpts.onRequestOpts, this.#getRequestOptions(userOpts))
     const response = this.#runHooks(userOpts.onResponse, await this.#doRequest(requestOptions))
-    if(userOpts.saveCookies) response.getCookies().forEach(c => c.save())
+    response.cookies = this.#parseSetCookies(response.headers['set-cookie'])
+      .map(cookie => { return {
+        data: cookie,
+        save: () => userOpts.cookieSaver(cookie)
+      }})
+    if(userOpts.saveCookies) response.cookies.forEach(cookie => cookie.save())
 
-    //todo: "remember redirect" option?
+    //todo: "remember redirect" option? before redirect hook?
     if (response.statusCode === 301 && userOpts.followRedirects > 0) {
       userOpts.followRedirects--
       userOpts.url = response.headers.location
