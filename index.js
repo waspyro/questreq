@@ -4,15 +4,20 @@ import https from 'https'
 export default class Request {
 
   constructor(opts) {
-    this.opts = this.#mergeOpts(opts)
+    if(opts) this.opts = this.#mergeOpts(opts)
     const mainEntry = this.request.bind(this)
     for (const prop in this) mainEntry[prop] = this[prop]
     return mainEntry
   }
 
-  #mergeOpts(newOpts) {
+  #mergeOpts(newOpts = {}) {
     const copy = {...this.opts}
-    Object.keys(newOpts).forEach(key => copy[key] = newOpts[key])
+    copy.headers = {...this.opts.headers}
+    const isObject = (value) => value && typeof value === 'object'
+    for (const key of Object.keys(newOpts)) {
+      if(isObject(newOpts[key]) && isObject(copy[key])) Object.assign({}, copy[key], newOpts[key])
+      else copy[key] = newOpts[key]
+    }
     return copy
   }
 
@@ -29,11 +34,9 @@ export default class Request {
     followRedirects: false,
     method: 'GET',
     agent: false,
-    saveCookies: false,
     appendCookies: false,
-    useCookies: false,
-    cookieSaver: () => {},
-    cookieGetter: () => {},
+    cookiesSetter: null,
+    cookiesReceiver: null,
     headers: {
       'Accept': '*/*',
       'Accept-Language': 'en-gb'
@@ -47,7 +50,7 @@ export default class Request {
 
   #getRequestOptions(userOptions) {
     const requestOptions = {
-      headers: userOptions.headers,
+      headers: userOptions.headers || {},
       url: userOptions.url,
       body: userOptions.body,
       method: userOptions.method,
@@ -65,10 +68,13 @@ export default class Request {
       requestOptions.headers['content-length'] = Buffer.byteLength(requestOptions.body)
     }
 
-    if (userOptions.useCookies) {
-      const cookieStr = userOptions.cookieGetter(userOptions.appendCookies)
-      if(cookieStr) requestOptions.headers.cookie = cookieStr
-    }
+    const userCookies = Object.assign({},
+      userOptions.cookiesSetter && userOptions.cookiesSetter(),
+      userOptions.appendCookies)
+    const cookieString = Object.entries(userCookies)
+      .map(([name, value]) => `${name}=${value}`)
+      .join('; ')
+    if(cookieString) requestOptions.headers.cookie = cookieString
 
     return requestOptions
   }
@@ -81,6 +87,7 @@ export default class Request {
         response.body = ''
         response.on('data', chunk => response.body += chunk)
         response.on('end', () => resolve(response))
+        response.cookies = this.#parseSetCookies(response.headers['set-cookie'])
       }).end(requestOpts.body)
     })
   }
@@ -109,12 +116,7 @@ export default class Request {
     userOpts = this.#runHooks(userOpts.onInit, userOpts)
     const requestOptions = this.#runHooks(userOpts.onRequestOpts, this.#getRequestOptions(userOpts))
     const response = this.#runHooks(userOpts.onResponse, await this.#doRequest(requestOptions))
-    response.cookies = this.#parseSetCookies(response.headers['set-cookie'])
-      .map(cookie => { return {
-        data: cookie,
-        save: () => userOpts.cookieSaver(cookie)
-      }})
-    if(userOpts.saveCookies) response.cookies.forEach(cookie => cookie.save())
+    userOpts.cookieReceiver && userOpts.cookieReceiver(response.cookies)
 
     //todo: "remember redirect" option? before redirect hook?
     if (response.statusCode === 301 && userOpts.followRedirects > 0) {

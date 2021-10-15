@@ -9,4 +9,4 @@ const req = r({
     "job": "leader"
   },
   pull: 'json'
-}).then(console.log)
+}).then(console.log) //should be name: 'morpheus'...
