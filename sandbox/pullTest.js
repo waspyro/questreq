@@ -1,7 +1,6 @@
-import Request from "../index.js";
+import request from "../index.js";
 
-const r = new Request
-const req = r({
+const req = request({
   url: 'https://reqres.in/api/users',
   method: 'POST',
   json: {
