@@ -1,6 +1,7 @@
 import http from 'http'
 import https from 'https'
 import querystring from "./qs.js";
+import FormData from "form-data";
 
 const REDIRECT_CODES = [301, 302, 307, 308];
 const SUCCESS_CODES = [200, 201];
@@ -138,6 +139,13 @@ function normalizeRequestOptions(userOptions) {
     } else if (userOptions.json) {
       requestOptions.headers['content-type'] = 'application/json'
       if(!userOptions.body) requestOptions.body = JSON.stringify(userOptions.json)
+    } else if(userOptions.formData) {
+      const fd = new FormData
+      for(const k in userOptions.formData)
+        fd.append(k, userOptions.formData[k])
+      requestOptions.headers['content-type'] =
+          'multipart/form-data; boundary=' + fd.getBoundary();
+      requestOptions.body = fd.getBuffer()
     }
     requestOptions.headers['content-length'] = Buffer.byteLength(requestOptions.body)
   }
